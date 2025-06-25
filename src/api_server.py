@@ -9,6 +9,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 import json
+import time
 
 from fastapi import FastAPI, HTTPException, Depends, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +18,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, validator
 import uvicorn
 
-from core import DNSBlocker, CacheManager, StatisticsCollector
+from core.blocker import DNSBlocker
+from core.cache_manager import CacheManager
+from core.statistics import StatisticsCollector
 from .auth_manager import AuthManager
 from .config_manager import ConfigManager
 from .logger import PidanosLogger

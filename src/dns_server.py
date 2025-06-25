@@ -15,8 +15,10 @@ from dataclasses import dataclass
 import signal
 import os
 
-from core import DNSBlocker, DNSParser, CacheManager, StatisticsCollector
-from core.statistics import QueryStats
+from core.blocker import DNSBlocker
+from core.dns_parser import DNSParser
+from core.cache_manager import CacheManager
+from core.statistics import StatisticsCollector, QueryStats
 from .logger import PidanosLogger
 from .config_manager import ConfigManager
 
