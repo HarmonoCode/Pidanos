@@ -1,0 +1,111 @@
+# Pidanos Configuration Templates
+# ================================
+# This file contains a list of all available configuration templates
+# and their descriptions for easy reference
+
+## Available Templates:
+
+### 1. nginx.conf.template
+Description: Nginx reverse proxy configuration for Pidanos
+Use case: When running Pidanos behind Nginx for SSL termination and load balancing
+Variables:
+  - web_port: Pidanos web interface port
+  - api_port: Pidanos API port
+  - server_name: Your domain name
+  - ssl_cert_path: Path to SSL certificate
+  - ssl_key_path: Path to SSL private key
+  - web_root: Web root directory
+  - cors_enabled: Enable CORS headers
+  - metrics_enabled: Enable metrics endpoint
+  - doh_enabled: Enable DNS-over-HTTPS
+
+### 2. dnsmasq.conf.template
+Description: DNSMasq integration configuration
+Use case: When using DNSMasq as the DNS resolver with Pidanos for blocking
+Variables:
+  - listen_address: IP address to listen on
+  - dns_port: DNS port (usually 53)
+  - upstream_dns: List of upstream DNS servers
+  - cache_size: DNS cache size
+  - dnssec_enabled: Enable DNSSEC validation
+  - dhcp_enabled: Enable DHCP server
+  - local_domain: Local domain name
+
+### 3. systemd.service.template
+Description: Systemd service unit file for Pidanos
+Use case: For running Pidanos as a system service on Linux
+Variables:
+  - service_user: User to run service as
+  - service_group: Group to run service as
+  - working_directory: Working directory path
+  - config_path: Path to configuration file
+  - install_path: Pidanos installation path
+  - pid_file: PID file location
+  - memory_limit: Memory limit for service
+  - cpu_quota: CPU quota percentage
+
+### 4. docker-compose.yml.template
+Description: Docker Compose configuration for Pidanos
+Use case: For containerized deployment of Pidanos
+Location: docker/docker-compose.yml.template
+
+### 5. apache.conf.template
+Description: Apache reverse proxy configuration
+Use case: Alternative to Nginx for Apache users
+Location: config/templates/apache.conf.template
+
+### 6. unbound.conf.template
+Description: Unbound DNS server integration
+Use case: When using Unbound as the DNS resolver
+Location: config/templates/unbound.conf.template
+
+### 7. logrotate.conf.template
+Description: Log rotation configuration
+Use case: For managing Pidanos log files
+Location: config/templates/logrotate.conf.template
+
+### 8. cron.d.template
+Description: Cron job configuration
+Use case: For scheduled tasks like blocklist updates
+Location: config/templates/cron.d.template
+
+## Template Usage:
+
+1. Copy the template file to your configuration directory
+2. Replace all variables ({{ variable_name }}) with actual values
+3. Save with appropriate filename (remove .template extension)
+4. Apply configuration to respective service
+
+## Template Variables:
+
+Common variables used across templates:
+- install_path: /opt/pidanos
+- config_path: /etc/pidanos/pidanos.conf
+- data_directory: /var/lib/pidanos
+- log_directory: /var/log/pidanos
+- service_user: pidanos
+- service_group: pidanos
+
+## Creating Custom Templates:
+
+To create custom templates:
+1. Use {{ variable_name }} syntax for variables
+2. Include comments explaining each section
+3. Provide sensible defaults where possible
+4. Document all variables at the top of template
+5. Test template with various configurations
+
+## Template Processing:
+
+Templates can be processed using:
+- pidanos-cli generate-config --template <template> --output <output>
+- Manual replacement using sed, envsubst, or similar tools
+- Python jinja2 template engine (built into Pidanos)
+
+## Best Practices:
+
+1. Always backup existing configurations before applying templates
+2. Validate generated configurations before applying
+3. Use version control for your configurations
+4. Test in development environment first
+5. Document any customizations made to templates

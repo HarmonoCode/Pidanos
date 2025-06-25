@@ -1,0 +1,62 @@
+# Pidanos Cron Configuration Template
+# ===================================
+# Scheduled tasks for Pidanos DNS Filter
+# 
+# This file should be placed in /etc/cron.d/pidanos
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+MAILTO={{ admin_email }}
+
+# Environment variables
+PIDANOS_HOME={{ install_path }}
+PIDANOS_CONFIG={{ config_path }}
+PIDANOS_USER={{ service_user }}
+
+# Update blocklists daily at 3:00 AM
+{{ update_hour }} {{ update_minute }} * * * {{ service_user }} /usr/bin/pidanos-cli update-blocklists --quiet >> {{ log_directory }}/cron.log 2>&1
+
+# Update GeoIP database weekly (Sunday at 4:00 AM)
+0 4 * * 0 {{ service_user }} /usr/bin/pidanos-cli update-geoip --quiet >> {{ log_directory }}/cron.log 2>&1
+
+# Clean up old statistics daily at 2:00 AM
+0 2 * * * {{ service_user }} /usr/bin/pidanos-cli cleanup-stats --days {{ stats_retention_days }} >> {{ log_directory }}/cron.log 2>&1
+
+# Optimize database weekly (Sunday at 5:00 AM)
+0 5 * * 0 {{ service_user }} /usr/bin/pidanos-cli optimize-db >> {{ log_directory }}/cron.log 2>&1
+
+# Generate daily statistics report at 6:00 AM
+0 6 * * * {{ service_user }} /usr/bin/pidanos-cli generate-report --type daily --email {{ admin_email }} >> {{ log_directory }}/cron.log 2>&1
+
+# Generate weekly statistics report (Monday at 7:00 AM)
+0 7 * * 1 {{ service_user }} /usr/bin/pidanos-cli generate-report --type weekly --email {{ admin_email }} >> {{ log_directory }}/cron.log 2>&1
+
+# Backup configuration and data daily at 1:00 AM
+0 1 * * * {{ service_user }} /usr/bin/pidanos-cli backup --destination {{ backup_directory }} --retain {{ backup_retention_days }} >> {{ log_directory }}/cron.log 2>&1
+
+# Check for Pidanos updates daily at 4:30 AM
+30 4 * * * {{ service_user }} /usr/bin/pidanos-cli check-updates --notify >> {{ log_directory }}/cron.log 2>&1
+
+# Flush DNS cache if memory usage is high (every hour)
+0 * * * * {{ service_user }} /usr/bin/pidanos-cli flush-cache --if-memory-high 80 >> {{ log_directory }}/cron.log 2>&1
+
+# Export metrics for monitoring (every 5 minutes)
+{% if metrics_export_enabled %}
+*/5 * * * * {{ service_user }} /usr/bin/pidanos-cli export-metrics --format prometheus --output {{ metrics_directory }}/pidanos.prom >> {{ log_directory }}/cron.log 2>&1
+{% endif %}
+
+# Health check (every 5 minutes)
+*/5 * * * * {{ service_user }} /usr/bin/pidanos-cli health-check --alert-on-failure >> {{ log_directory }}/cron.log 2>&1
+
+# Certificate renewal check (daily at 2:30 AM)
+{% if ssl_enabled %}
+30 2 * * * root /usr/bin/certbot renew --quiet --post-hook "systemctl reload nginx" >> {{ log_directory }}/cron.log 2>&1
+{% endif %}
+
+# Custom scheduled tasks
+{% for task in custom_tasks %}
+{{ task.schedule }} {{ task.user }} {{ task.command }} >> {{ log_directory }}/cron.log 2>&1
+{% endfor %}
+
+# Log rotation reminder (handled by logrotate, but we check)
+0 0 * * * root test -x /usr/sbin/logrotate && /usr/sbin/logrotate /etc/logrotate.d/pidanos

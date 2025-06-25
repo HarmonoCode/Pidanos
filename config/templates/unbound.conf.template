@@ -1,0 +1,167 @@
+# Pidanos Unbound Configuration Template
+# ======================================
+# Configuration for using Unbound DNS server with Pidanos
+
+server:
+    # Network interface configuration
+    interface: {{ listen_address }}
+    {% if ipv6_enabled %}
+    interface: ::0
+    {% endif %}
+    port: {{ dns_port }}
+    
+    # Access control
+    access-control: 0.0.0.0/0 refuse
+    access-control: 127.0.0.0/8 allow
+    access-control: {{ allowed_network }} allow
+    {% if ipv6_enabled %}
+    access-control: ::0/0 refuse
+    access-control: ::1 allow
+    access-control: {{ allowed_network_ipv6 }} allow
+    {% endif %}
+    
+    # Performance settings
+    num-threads: {{ num_threads }}
+    msg-cache-slabs: {{ msg_cache_slabs }}
+    rrset-cache-slabs: {{ rrset_cache_slabs }}
+    infra-cache-slabs: {{ infra_cache_slabs }}
+    key-cache-slabs: {{ key_cache_slabs }}
+    
+    # Cache sizes
+    rrset-cache-size: {{ rrset_cache_size }}
+    msg-cache-size: {{ msg_cache_size }}
+    
+    # TCP settings
+    outgoing-range: 8192
+    num-queries-per-thread: 4096
+    
+    # Socket options
+    so-rcvbuf: {{ so_rcvbuf }}
+    so-sndbuf: {{ so_sndbuf }}
+    
+    # EDNS buffer size
+    edns-buffer-size: {{ edns_buffer_size }}
+    
+    # TTL settings
+    cache-min-ttl: {{ min_ttl }}
+    cache-max-ttl: {{ max_ttl }}
+    cache-max-negative-ttl: {{ max_negative_ttl }}
+    
+    # Security settings
+    hide-identity: yes
+    hide-version: yes
+    harden-glue: yes
+    harden-dnssec-stripped: yes
+    harden-referral-path: yes
+    use-caps-for-id: yes
+    
+    # DNSSEC settings
+    {% if dnssec_enabled %}
+    module-config: "validator iterator"
+    auto-trust-anchor-file: "/var/lib/unbound/root.key"
+    val-clean-additional: yes
+    val-permissive-mode: no
+    val-log-level: 1
+    {% else %}
+    module-config: "iterator"
+    {% endif %}
+    
+    # Privacy settings
+    qname-minimisation: yes
+    qname-minimisation-strict: no
+    
+    # Prefetching
+    prefetch: {{ prefetch_enabled }}
+    prefetch-key: {{ prefetch_key }}
+    
+    # Logging
+    verbosity: {{ verbosity }}
+    log-queries: {{ log_queries }}
+    log-replies: {{ log_replies }}
+    log-tag-queryreply: {{ log_tag_queryreply }}
+    log-local-actions: {{ log_local_actions }}
+    
+    # Statistics
+    statistics-interval: {{ statistics_interval }}
+    statistics-cumulative: {{ statistics_cumulative }}
+    extended-statistics: {{ extended_statistics }}
+    
+    # Local zone for Pidanos blocking
+    include: "/var/lib/pidanos/unbound.d/blocklist.conf"
+    
+    # Local data for custom DNS records
+    {% for domain, ip in custom_dns_records.items() %}
+    local-data: "{{ domain }} A {{ ip }}"
+    {% endfor %}
+    
+    # Private addresses (don't leak to internet)
+    private-address: 10.0.0.0/8
+    private-address: 172.16.0.0/12
+    private-address: 192.168.0.0/16
+    private-address: 169.254.0.0/16
+    private-address: fd00::/8
+    private-address: fe80::/10
+    
+    # Unwanted replies threshold
+    unwanted-reply-threshold: 10000
+    
+    # Rate limiting
+    {% if rate_limit_enabled %}
+    ratelimit: {{ rate_limit }}
+    ip-ratelimit: {{ ip_rate_limit }}
+    ratelimit-slabs: {{ ratelimit_slabs }}
+    ip-ratelimit-slabs: {{ ip_ratelimit_slabs }}
+    ratelimit-size: {{ ratelimit_size }}
+    ip-ratelimit-size: {{ ip_ratelimit_size }}
+    {% endif %}
+    
+    # Aggressive NSEC
+    {% if aggressive_nsec %}
+    aggressive-nsec: yes
+    {% endif %}
+    
+    # TCP Fast Open
+    {% if tcp_fast_open %}
+    tcp-mss: 1280
+    outgoing-tcp-mss: 1280
+    {% endif %}
+
+# Remote control configuration
+remote-control:
+    control-enable: {{ remote_control_enabled }}
+    {% if remote_control_enabled %}
+    control-interface: 127.0.0.1
+    control-port: {{ control_port }}
+    server-key-file: "/etc/unbound/unbound_server.key"
+    server-cert-file: "/etc/unbound/unbound_server.pem"
+    control-key-file: "/etc/unbound/unbound_control.key"
+    control-cert-file: "/etc/unbound/unbound_control.pem"
+    {% endif %}
+
+# Forward zones (upstream DNS)
+forward-zone:
+    name: "."
+    {% for server in upstream_dns %}
+    forward-addr: {{ server }}
+    {% endfor %}
+    forward-first: {{ forward_first }}
+    forward-tls-upstream: {{ forward_tls }}
+
+# Stub zones for local domains
+{% for zone in local_zones %}
+stub-zone:
+    name: "{{ zone.name }}"
+    {% for server in zone.servers %}
+    stub-addr: {{ server }}
+    {% endfor %}
+    stub-first: {{ zone.first }}
+{% endfor %}
+
+# Include additional configuration files
+include: "/etc/unbound/conf.d/*.conf"
+
+# Python module for Pidanos integration
+{% if python_module_enabled %}
+python:
+    python-script: "/opt/pidanos/integrations/unbound_module.py"
+{% endif %}

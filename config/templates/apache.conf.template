@@ -1,0 +1,189 @@
+# Pidanos Apache Configuration Template
+# =====================================
+# Apache reverse proxy configuration for Pidanos
+
+<VirtualHost *:80>
+    ServerName {{ server_name }}
+    ServerAdmin {{ server_admin }}
+    
+    # Redirect all HTTP to HTTPS
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}$1 [R=301,L]
+    
+    # ACME challenge directory
+    Alias /.well-known/acme-challenge/ /var/www/letsencrypt/.well-known/acme-challenge/
+    <Directory "/var/www/letsencrypt/.well-known/acme-challenge/">
+        Options None
+        AllowOverride None
+        Require all granted
+    </Directory>
+    
+    # Logging
+    ErrorLog ${APACHE_LOG_DIR}/pidanos_error.log
+    CustomLog ${APACHE_LOG_DIR}/pidanos_access.log combined
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName {{ server_name }}
+    ServerAdmin {{ server_admin }}
+    
+    # SSL Configuration
+    SSLEngine on
+    SSLCertificateFile {{ ssl_cert_path }}
+    SSLCertificateKeyFile {{ ssl_key_path }}
+    SSLCertificateChainFile {{ ssl_chain_path }}
+    
+    # Modern SSL configuration
+    SSLProtocol -all +TLSv1.2 +TLSv1.3
+    SSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+    SSLHonorCipherOrder off
+    SSLSessionTickets off
+    
+    # OCSP Stapling
+    SSLUseStapling on
+    SSLStaplingResponderTimeout 5
+    SSLStaplingReturnResponderErrors off
+    SSLStaplingCache shmcb:/var/run/ocsp(128000)
+    
+    # Security headers
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "no-referrer-when-downgrade"
+    Header always set Content-Security-Policy "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; media-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self';"
+    
+    # Document root
+    DocumentRoot {{ web_root }}/static
+    
+    # Proxy configuration
+    ProxyPreserveHost On
+    ProxyRequests Off
+    
+    # WebSocket support
+    RewriteEngine On
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "ws://localhost:{{ web_port }}/$1" [P,L]
+    
+    # API proxy
+    ProxyPass /api http://localhost:{{ api_port }}/api
+    ProxyPassReverse /api http://localhost:{{ api_port }}/api
+    
+    <Location /api>
+        # CORS headers (if needed)
+        {% if cors_enabled %}
+        Header always set Access-Control-Allow-Origin "{{ cors_origin }}"
+        Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        Header always set Access-Control-Allow-Headers "Authorization, Content-Type, X-Requested-With"
+        Header always set Access-Control-Allow-Credentials "true"
+        
+        # Handle preflight requests
+        RewriteCond %{REQUEST_METHOD} OPTIONS
+        RewriteRule ^(.*)$ $1 [R=204,L]
+        {% endif %}
+    </Location>
+    
+    # Static files
+    Alias /static {{ web_root }}/static
+    <Directory {{ web_root }}/static>
+        Options -Indexes +FollowSymLinks
+        AllowOverride None
+        Require all granted
+        
+        # Cache static assets
+        <FilesMatch "\.(css|js|jpg|jpeg|png|gif|ico|woff|woff2|ttf|svg|eot)$">
+            Header set Cache-Control "public, max-age=2592000"
+        </FilesMatch>
+    </Directory>
+    
+    # Media files
+    Alias /media {{ web_root }}/media
+    <Directory {{ web_root }}/media>
+        Options -Indexes +FollowSymLinks
+        AllowOverride None
+        Require all granted
+        Header set Cache-Control "public, max-age=604800"
+    </Directory>
+    
+    # Web interface proxy
+    ProxyPass /static !
+    ProxyPass /media !
+    ProxyPass / http://localhost:{{ web_port }}/
+    ProxyPassReverse / http://localhost:{{ web_port }}/
+    
+    # Block page
+    Alias /blocked {{ web_root }}/templates/blocked.html
+    
+    # Health check endpoint
+    <Location /health>
+        SetHandler server-status
+        Require local
+    </Location>
+    
+    # Metrics endpoint (if enabled)
+    {% if metrics_enabled %}
+    ProxyPass /metrics http://localhost:{{ metrics_port }}/metrics
+    ProxyPassReverse /metrics http://localhost:{{ metrics_port }}/metrics
+    
+    <Location /metrics>
+        Require ip 127.0.0.1
+        Require ip {{ admin_network }}
+    </Location>
+    {% endif %}
+    
+    # Compression
+    <IfModule mod_deflate.c>
+        AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+    </IfModule>
+    
+    # Error pages
+    ErrorDocument 404 /404.html
+    ErrorDocument 500 /50x.html
+    ErrorDocument 502 /50x.html
+    ErrorDocument 503 /50x.html
+    ErrorDocument 504 /50x.html
+    
+    # Logging
+    ErrorLog ${APACHE_LOG_DIR}/pidanos_ssl_error.log
+    CustomLog ${APACHE_LOG_DIR}/pidanos_ssl_access.log combined
+</VirtualHost>
+
+# DNS-over-HTTPS configuration (if enabled)
+{% if doh_enabled %}
+<VirtualHost *:{{ doh_port }}>
+    ServerName {{ server_name }}
+    
+    SSLEngine on
+    SSLCertificateFile {{ ssl_cert_path }}
+    SSLCertificateKeyFile {{ ssl_key_path }}
+    
+    # Same SSL configuration as main site
+    SSLProtocol -all +TLSv1.2 +TLSv1.3
+    SSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+    
+    # DoH endpoint
+    ProxyPass /dns-query http://localhost:{{ doh_backend_port }}/dns-query
+    ProxyPassReverse /dns-query http://localhost:{{ doh_backend_port }}/dns-query
+    
+    <Location /dns-query>
+        Header always set Content-Type "application/dns-message"
+        Header always set Cache-Control "no-cache, no-store, must-revalidate"
+    </Location>
+    
+    ErrorLog ${APACHE_LOG_DIR}/pidanos_doh_error.log
+    CustomLog ${APACHE_LOG_DIR}/pidanos_doh_access.log combined
+</VirtualHost>
+{% endif %}
+
+# Required Apache modules:
+# a2enmod ssl
+# a2enmod proxy
+# a2enmod proxy_http
+# a2enmod proxy_wstunnel
+# a2enmod headers
+# a2enmod rewrite
+# a2enmod deflate
+    

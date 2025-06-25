@@ -1,0 +1,130 @@
+# Pidanos DNSMasq Configuration Template
+# ======================================
+# This template is used when integrating with dnsmasq
+
+# Basic settings
+domain-needed
+bogus-priv
+no-resolv
+no-poll
+expand-hosts
+localise-queries
+
+# DNS settings
+listen-address=127.0.0.1,{{ listen_address }}
+bind-interfaces
+port={{ dns_port }}
+
+# Upstream DNS servers
+{% for server in upstream_dns %}
+server={{ server }}
+{% endfor %}
+
+# Cache settings
+cache-size={{ cache_size }}
+neg-ttl={{ negative_cache_ttl }}
+max-ttl={{ max_cache_ttl }}
+min-cache-ttl={{ min_cache_ttl }}
+
+# DNSSEC
+{% if dnssec_enabled %}
+dnssec
+trust-anchor=/etc/pidanos/trust-anchors.conf
+dnssec-check-unsigned
+{% endif %}
+
+# Logging
+log-queries={{ log_queries }}
+log-facility={{ log_facility }}
+{% if log_async %}
+log-async={{ log_async_lines }}
+{% endif %}
+
+# Block configuration
+address=/{{ blocked_domain_response }}/{{ block_ip }}
+{% if block_ipv6 %}
+address=/{{ blocked_domain_response }}/{{ block_ipv6 }}
+{% endif %}
+
+# Include Pidanos-generated blocklist
+conf-file=/var/lib/pidanos/dnsmasq.d/blocklist.conf
+
+# Include Pidanos-generated whitelist
+conf-file=/var/lib/pidanos/dnsmasq.d/whitelist.conf
+
+# Custom DNS records
+{% for domain, ip in custom_dns_records.items() %}
+address=/{{ domain }}/{{ ip }}
+{% endfor %}
+
+# Local domain settings
+local=/{{ local_domain }}/
+domain={{ local_domain }}
+
+# DHCP settings (if enabled)
+{% if dhcp_enabled %}
+dhcp-range={{ dhcp_start }},{{ dhcp_end }},{{ dhcp_lease_time }}
+dhcp-option=option:router,{{ gateway }}
+dhcp-option=option:dns-server,{{ dns_server }}
+dhcp-option=option:domain-name,{{ local_domain }}
+dhcp-option=option:domain-search,{{ search_domains }}
+
+# Static DHCP leases
+{% for lease in static_leases %}
+dhcp-host={{ lease.mac }},{{ lease.ip }},{{ lease.hostname }}
+{% endfor %}
+
+dhcp-authoritative
+dhcp-rapid-commit
+{% endif %}
+
+# Conditional forwarding
+{% for rule in conditional_forwarding %}
+server=/{{ rule.domain }}/{{ rule.server }}
+{% endfor %}
+
+# Never forward these domains
+{% for domain in never_forward %}
+server=/{{ domain }}/
+{% endfor %}
+
+# PTR records for private ranges
+{% if ptr_private_ranges %}
+rev-server={{ private_range_1 }},{{ ptr_server_1 }}
+rev-server={{ private_range_2 }},{{ ptr_server_2 }}
+{% endif %}
+
+# Performance tuning
+edns-packet-max={{ edns_packet_max }}
+{% if enable_tcp %}
+no-daemon
+keep-in-foreground
+{% endif %}
+
+# Security settings
+stop-dns-rebind
+rebind-localhost-ok
+{% for domain in rebind_domain_ok %}
+rebind-domain-ok={{ domain }}
+{% endfor %}
+
+# Rate limiting
+{% if rate_limit_enabled %}
+rate-limit={{ rate_limit_queries }}/{{ rate_limit_window }}
+{% endif %}
+
+# Interface settings
+{% if bind_interfaces %}
+interface={{ interface }}
+except-interface=lo
+{% endif %}
+
+# Additional options
+all-servers
+strict-order
+{% if filter_win2k %}
+filterwin2k
+{% endif %}
+
+# Read additional configuration from directory
+conf-dir=/etc/pidanos/dnsmasq.d/,*.conf

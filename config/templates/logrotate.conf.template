@@ -1,0 +1,129 @@
+# Pidanos Logrotate Configuration Template
+# ========================================
+# Log rotation configuration for Pidanos log files
+
+{{ log_directory }}/pidanos.log {
+    # Rotation frequency
+    {{ rotation_frequency }}
+    
+    # Keep this many rotated logs
+    rotate {{ rotate_count }}
+    
+    # Rotate when file reaches this size
+    size {{ max_size }}
+    
+    # Compress rotated logs
+    compress
+    delaycompress
+    
+    # Compression command
+    compresscmd /bin/gzip
+    compressext .gz
+    
+    # Don't rotate if empty
+    notifempty
+    
+    # Create new log file with permissions
+    create 0640 {{ service_user }} {{ service_group }}
+    
+    # Scripts to run
+    sharedscripts
+    postrotate
+        # Signal Pidanos to reopen log files
+        if [ -f {{ pid_file }} ]; then
+            kill -USR1 $(cat {{ pid_file }}) > /dev/null 2>&1 || true
+        fi
+    endscript
+}
+
+{{ log_directory }}/dns-queries.log {
+    {{ rotation_frequency }}
+    rotate {{ query_log_rotate_count }}
+    size {{ query_log_max_size }}
+    compress
+    delaycompress
+    notifempty
+    create 0640 {{ service_user }} {{ service_group }}
+    sharedscripts
+    postrotate
+        if [ -f {{ pid_file }} ]; then
+            kill -USR1 $(cat {{ pid_file }}) > /dev/null 2>&1 || true
+        fi
+    endscript
+}
+
+{{ log_directory }}/blocked.log {
+    {{ rotation_frequency }}
+    rotate {{ blocked_log_rotate_count }}
+    size {{ blocked_log_max_size }}
+    compress
+    delaycompress
+    notifempty
+    create 0640 {{ service_user }} {{ service_group }}
+    sharedscripts
+    postrotate
+        if [ -f {{ pid_file }} ]; then
+            kill -USR1 $(cat {{ pid_file }}) > /dev/null 2>&1 || true
+        fi
+    endscript
+}
+
+{{ log_directory }}/error.log {
+    {{ rotation_frequency }}
+    rotate {{ error_log_rotate_count }}
+    size {{ error_log_max_size }}
+    compress
+    delaycompress
+    notifempty
+    create 0640 {{ service_user }} {{ service_group }}
+    sharedscripts
+    postrotate
+        if [ -f {{ pid_file }} ]; then
+            kill -USR1 $(cat {{ pid_file }}) > /dev/null 2>&1 || true
+        fi
+    endscript
+}
+
+{{ log_directory }}/api.log {
+    daily
+    rotate 7
+    size 50M
+    compress
+    delaycompress
+    notifempty
+    create 0640 {{ service_user }} {{ service_group }}
+    sharedscripts
+    postrotate
+        if [ -f {{ pid_file }} ]; then
+            kill -USR1 $(cat {{ pid_file }}) > /dev/null 2>&1 || true
+        fi
+    endscript
+}
+
+{{ log_directory }}/performance.log {
+    weekly
+    rotate 4
+    size 100M
+    compress
+    delaycompress
+    notifempty
+    create 0640 {{ service_user }} {{ service_group }}
+}
+
+# Audit logs (keep longer)
+{{ log_directory }}/audit.log {
+    monthly
+    rotate 12
+    size 200M
+    compress
+    delaycompress
+    notifempty
+    create 0640 {{ service_user }} {{ service_group }}
+    sharedscripts
+    postrotate
+        # Archive old audit logs
+        if [ -f {{ log_directory }}/audit.log.12.gz ]; then
+            mv {{ log_directory }}/audit.log.12.gz {{ archive_directory }}/audit-$(date +%Y%m).log.gz
+        fi
+    endscript
+}
