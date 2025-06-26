@@ -1,0 +1,16 @@
+[Unit]
+Description=Pidanos DNS Filter - Blocklist Update Timer
+Documentation=https://github.com/HarmonoCode/Pidanos
+Requires=pidanos-updater.service
+
+[Timer]
+# Run daily at 3 AM
+OnCalendar=daily
+AccuracySec=1h
+Persistent=true
+
+# Randomize delay up to 1 hour to prevent load spikes
+RandomizedDelaySec=3600
+
+[Install]
+WantedBy=timers.target

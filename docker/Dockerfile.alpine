@@ -1,0 +1,71 @@
+# Lightweight Alpine-based Dockerfile for Pidanos
+FROM python:3.11-alpine
+
+# Install system dependencies
+RUN apk add --no-cache \
+    # Build dependencies (temporary)
+    build-base \
+    linux-headers \
+    # Runtime dependencies
+    dnsmasq \
+    supervisor \
+    curl \
+    bash \
+    # Clean up build deps will happen later
+    && adduser -D -s /bin/false -h /home/pidanos pidanos
+
+# Set working directory
+WORKDIR /opt/pidanos
+
+# Copy requirements and install Python dependencies
+COPY pidanos-requirements.txt .
+RUN pip install --no-cache-dir -r pidanos-requirements.txt \
+    && apk del build-base linux-headers \
+    && rm -rf /root/.cache
+
+# Copy application files
+COPY config/ ./config/
+COPY core/ ./core/
+COPY src/ ./src/
+COPY web/ ./web/
+COPY scripts/ ./scripts/
+COPY docker/entrypoint.sh /entrypoint.sh
+COPY docker/supervisord.conf /etc/supervisor.d/pidanos.ini
+
+# Create necessary directories
+RUN mkdir -p /var/lib/pidanos \
+    /var/log/pidanos \
+    /etc/pidanos \
+    && chown -R pidanos:pidanos /var/lib/pidanos \
+    /var/log/pidanos \
+    /etc/pidanos \
+    /opt/pidanos \
+    && chmod +x /entrypoint.sh
+
+# Copy default configuration
+RUN cp config/pidanos.conf /etc/pidanos/pidanos.conf.default
+
+# Expose ports
+EXPOSE 53/tcp 53/udp 8080/tcp 8081/tcp
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8081/api/system/health || exit 1
+
+# Environment variables
+ENV PYTHONPATH=/opt/pidanos \
+    PIDANOS_CONFIG=/etc/pidanos/pidanos.conf \
+    PIDANOS_DATA_DIR=/var/lib/pidanos \
+    PIDANOS_LOG_DIR=/var/log/pidanos
+
+# Volume mounts
+VOLUME ["/etc/pidanos", "/var/lib/pidanos", "/var/log/pidanos"]
+
+# Run as pidanos user
+USER pidanos
+
+# Entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default command
+CMD ["supervisord", "-c", "/etc/supervisord.conf"]

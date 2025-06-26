@@ -1,0 +1,18 @@
+[Unit]
+Description=Pidanos DNS Filter - Main Service
+Documentation=https://github.com/HarmonoCode/Pidanos
+After=network-online.target
+Wants=network-online.target
+Requires=pidanos-dns.service pidanos-web.service pidanos-api.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/true
+RemainAfterExit=yes
+
+# Manage all Pidanos services as a group
+ExecStop=/bin/systemctl stop pidanos-dns.service pidanos-web.service pidanos-api.service pidanos-updater.timer
+ExecReload=/bin/systemctl reload pidanos-dns.service pidanos-web.service pidanos-api.service
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,58 @@
+[Unit]
+Description=Pidanos DNS Filter - Web Interface
+Documentation=https://github.com/HarmonoCode/Pidanos
+After=network-online.target pidanos-dns.service
+Wants=network-online.target
+PartOf=pidanos.service
+
+[Service]
+Type=notify
+User=pidanos
+Group=pidanos
+WorkingDirectory=/opt/pidanos
+
+# Environment
+Environment="PYTHONPATH=/opt/pidanos"
+Environment="PIDANOS_CONFIG=/etc/pidanos/pidanos.conf"
+EnvironmentFile=-/etc/default/pidanos
+
+# Execute
+ExecStart=/usr/bin/python3 -m src.web_server
+ExecReload=/bin/kill -USR1 $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
+
+# Restart policy
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pidanos /var/log/pidanos
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# Resource limits
+LimitNOFILE=4096
+TasksMax=50
+MemoryLimit=256M
+CPUQuota=30%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pidanos-web
+
+[Install]
+WantedBy=multi-user.target
